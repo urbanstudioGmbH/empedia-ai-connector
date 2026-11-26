@@ -9,6 +9,6 @@ if [[ -n "${RELEASE_TAG:-}" ]]; then
 fi
 mkdir -p build/empedia-ai-connector
 cp plugin/empedia-ai-connector.php plugin/readme.txt plugin/LICENSE build/empedia-ai-connector/
-cp -R plugin/includes build/empedia-ai-connector/
+cp -R plugin/includes plugin/assets build/empedia-ai-connector/
 find build/empedia-ai-connector -name '*.php' -exec php -l {} \;
 (cd build && zip -qr empedia-ai-connector.zip empedia-ai-connector)

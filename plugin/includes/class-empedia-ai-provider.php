@@ -34,7 +34,16 @@ class Empedia_AI_Provider extends AbstractApiProvider {
 	 * @return ProviderMetadata
 	 */
 	protected static function createProviderMetadata(): ProviderMetadata {
-		return new ProviderMetadata( 'empedia', 'EMPEDIA', ProviderTypeEnum::cloud(), 'https://empedia.cloud/', RequestAuthenticationMethod::apiKey() );
+		$plugin_dir = defined( 'EMPEDIA_AI_CONNECTOR_PLUGIN_DIR' ) ? EMPEDIA_AI_CONNECTOR_PLUGIN_DIR : dirname( __DIR__ );
+		return new ProviderMetadata(
+			'empedia',
+			'EMPEDIA',
+			ProviderTypeEnum::cloud(),
+			'https://empedia.cloud/',
+			RequestAuthenticationMethod::apiKey(),
+			function_exists( '__' ) ? __( 'Text, image understanding, embeddings and speech from EMPEDIA.', 'empedia-ai-connector' ) : 'Text, image understanding, embeddings and speech from EMPEDIA.',
+			$plugin_dir . '/assets/empedia-icon.png'
+		);
 	}
 	/**
 	 * {@inheritDoc}

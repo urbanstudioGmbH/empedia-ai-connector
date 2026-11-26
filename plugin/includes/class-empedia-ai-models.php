@@ -115,7 +115,6 @@ class Empedia_AI_Models implements ModelMetadataDirectoryInterface, WithHttpTran
 				array( CapabilityEnum::embeddingGeneration() ),
 				array(
 					new SupportedOption( OptionEnum::inputModalities(), $modalities ),
-					new SupportedOption( OptionEnum::dimensions() ),
 				)
 			);
 		}

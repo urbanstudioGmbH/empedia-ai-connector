@@ -51,8 +51,20 @@ jobs:
         run: |
           curl -fsSL "https://wordpress.org/wordpress-${WP_VERSION}.tar.gz" | tar xz
           WP_AI_CLIENT_AUTOLOAD="$PWD/wordpress/wp-includes/php-ai-client/autoload.php" php tests/sdk.php
+  embeddings:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+      - name: Install embedding-capable AI Client
+        run: composer install --working-dir=tools/embedding-sdk --no-plugins --no-interaction --prefer-dist --no-progress
+      - name: Test embedding contracts
+        run: php tests/embeddings.php
   deploy:
-    needs: [checks, sdk]
+    needs: [checks, sdk, embeddings]
     if: ${{ vars.WPORG_APPROVED == 'true' && github.ref_type == 'tag' }}
     runs-on: ubuntu-latest
     environment: wordpress-org

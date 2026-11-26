@@ -24,7 +24,7 @@ An EMPEDIA account and API key with access to the model are required. API usage 
 
 == External services ==
 
-The plugin connects to EMPEDIA at https://llmapi.empedia.cloud/v1. The WordPress AI Client fetches the list of models available to the configured API key and sends data to EMPEDIA only when a compatible plugin requests it: prompts and any selected images for text generation (chat/completions), texts and any selected images (or their URLs) for embeddings (embeddings) and texts for speech output (audio/speech). For speech output the list of available voices may be fetched (audio/voices). These requests use the configured API key. No content is sent by this connector merely on installation.
+The plugin connects to EMPEDIA at https://llmapi.empedia.cloud/v1. The WordPress AI Client fetches the list of models available to the configured API key and sends data to EMPEDIA only when a compatible plugin requests it: prompts and any selected images for text generation (chat/completions), texts and any selected inline images for embeddings (embeddings) and texts for speech output (audio/speech). For speech output the list of available voices may be fetched (audio/voices). These requests use the configured API key. No content is sent by this connector merely on installation.
 
 EMPEDIA Cloud: https://empedia.cloud/
 Privacy policy: https://empedia.cloud/datenschutz.html
@@ -38,7 +38,7 @@ Please consult the terms and privacy information in your EMPEDIA Cloud account b
 No. It provides a model connection for other plugins using the WordPress AI Client.
 
 = Which models and capabilities are supported? =
-Text generation with text and image input (for example Gemma 4), embeddings (for example Qwen3 Embedding) and text to speech, as far as these models are available to your API key. Speech recognition (transcription) and document conversion (for example MinerU) are not supported because the WordPress AI Client does not currently provide these capabilities.
+Text generation with text and image input (for example Gemma 4), embeddings (for example Qwen3 Embedding) and text to speech, as far as these models are available to your API key. Embedding support requires an AI Client version that includes the embedding model interface; the AI Client bundled with WordPress 7.0 and 7.1 does not expose that interface. Speech recognition (transcription) and document conversion (for example MinerU) are not supported because the WordPress AI Client does not currently provide these capabilities.
 
 == Changelog ==
 

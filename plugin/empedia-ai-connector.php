@@ -19,6 +19,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// Preserve the plugin path when WordPress loads it through a symlink.
+if ( ! defined( 'EMPEDIA_AI_CONNECTOR_PLUGIN_DIR' ) ) {
+	define( 'EMPEDIA_AI_CONNECTOR_PLUGIN_DIR', WP_PLUGIN_DIR . '/' . dirname( plugin_basename( __FILE__ ) ) );
+}
+
 /**
  * Register the provider after WordPress initializes the AI client.
  *

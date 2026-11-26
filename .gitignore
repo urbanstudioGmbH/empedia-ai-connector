@@ -1,3 +1,5 @@
 /build/
 /tools/wordpress-cs/vendor/
 .DS_Store
+
+/tools/embedding-sdk/vendor/

@@ -43,19 +43,95 @@ class Empedia_AI_Embedding_Model extends AbstractApiBasedModel implements Embedd
 		if ( empty( $inputs ) || count( $inputs ) > self::MAX_INPUTS ) {
 			throw new InvalidArgumentException( 'EMPEDIA embeddings need between 1 and 64 inputs.' );
 		}
-		$payload = array();
-		foreach ( $inputs as $part ) {
-			$payload[] = $this->input_of( $part );
-		}
-		$body       = array(
-			'model' => $this->metadata()->getId(),
-			'input' => $payload,
-		);
-		$dimensions = $this->getConfig()->getDimensions();
-		if ( null !== $dimensions ) {
-			$body['dimensions'] = (int) $dimensions;
+		if ( null !== $this->getConfig()->getDimensions() ) {
+			throw new InvalidArgumentException( 'EMPEDIA does not support custom embedding dimensions.' );
 		}
 
+		$texts        = array();
+		$text_indices = array();
+		$images       = array();
+		foreach ( array_values( $inputs ) as $index => $part ) {
+			$value = $this->input_of( $part );
+			if ( $part->getType()->isFile() ) {
+				$images[ $index ] = $value;
+			} else {
+				$text_indices[] = $index;
+				$texts[]        = $value;
+			}
+		}
+
+		$results       = array();
+		$prompt_tokens = 0;
+		$total_tokens  = 0;
+		$request_id    = '';
+		if ( $texts ) {
+			$this->append_response(
+				array(
+					'model' => $this->metadata()->getId(),
+					'input' => $texts,
+				),
+				$text_indices,
+				$results,
+				$prompt_tokens,
+				$total_tokens,
+				$request_id
+			);
+		}
+		foreach ( $images as $index => $uri ) {
+			$this->append_response(
+				array(
+					'model'    => $this->metadata()->getId(),
+					'messages' => array(
+						array(
+							'role'    => 'user',
+							'content' => array(
+								array(
+									'type'      => 'image_url',
+									'image_url' => array( 'url' => $uri ),
+								),
+							),
+						),
+					),
+				),
+				array( $index ),
+				$results,
+				$prompt_tokens,
+				$total_tokens,
+				$request_id
+			);
+		}
+		ksort( $results );
+		$size       = count( reset( $results ) );
+		$embeddings = array();
+		foreach ( $results as $values ) {
+			if ( count( $values ) !== $size ) {
+				throw new RuntimeException( 'EMPEDIA returned embeddings of different sizes.' );
+			}
+			$embeddings[] = new Embedding( $values, $size );
+		}
+		return new EmbeddingResult(
+			$request_id ? $request_id : uniqid( 'empedia-emb-', true ),
+			$embeddings,
+			$size,
+			new TokenUsage( $prompt_tokens, 0, $total_tokens ),
+			$this->providerMetadata(),
+			$this->metadata()
+		);
+	}
+
+	/**
+	 * Send a batch and assign each returned vector to its input position.
+	 *
+	 * @param array  $body Request body.
+	 * @param array  $positions Original input positions.
+	 * @param array  $results Result vectors by position.
+	 * @param int    $prompt_tokens Accumulated input tokens.
+	 * @param int    $total_tokens Accumulated total tokens.
+	 * @param string $request_id Last request ID.
+	 * @return void
+	 * @throws RuntimeException For malformed API responses.
+	 */
+	private function append_response( array $body, array $positions, array &$results, int &$prompt_tokens, int &$total_tokens, string &$request_id ): void {
 		$options = $this->getRequestOptions();
 		$options = $options ? clone $options : new RequestOptions();
 		$options->setMaxRedirects( 0 );
@@ -63,49 +139,30 @@ class Empedia_AI_Embedding_Model extends AbstractApiBasedModel implements Embedd
 		$request  = $this->getRequestAuthentication()->authenticateRequest( $request );
 		$response = $this->getHttpTransporter()->send( $request );
 		ResponseUtil::throwIfNotSuccessful( $response );
-
 		$data = $response->getData();
-		if ( ! is_array( $data ) || ! isset( $data['data'] ) || ! is_array( $data['data'] ) ) {
+		if ( ! is_array( $data ) || ! isset( $data['data'] ) || ! is_array( $data['data'] ) || count( $data['data'] ) !== count( $positions ) ) {
 			throw new RuntimeException( 'EMPEDIA returned an invalid embedding response.' );
 		}
-		$rows = $data['data'];
-		usort(
-			$rows,
-			static function ( $a, $b ) {
-				return (int) ( $a['index'] ?? 0 ) <=> (int) ( $b['index'] ?? 0 );
-			}
-		);
-		if ( count( $rows ) !== count( $payload ) ) {
-			throw new RuntimeException( 'EMPEDIA returned an unexpected number of embeddings.' );
-		}
-		$embeddings = array();
-		$size       = 0;
-		foreach ( $rows as $row ) {
-			if ( ! is_array( $row ) || ! isset( $row['embedding'] ) || ! is_array( $row['embedding'] ) || empty( $row['embedding'] ) ) {
+		$seen = array();
+		foreach ( $data['data'] as $row ) {
+			if ( ! is_array( $row ) || ! isset( $row['index'], $row['embedding'] ) || ! is_int( $row['index'] ) || ! isset( $positions[ $row['index'] ] ) || isset( $seen[ $row['index'] ] ) || ! is_array( $row['embedding'] ) || empty( $row['embedding'] ) ) {
 				throw new RuntimeException( 'EMPEDIA returned an invalid embedding.' );
 			}
-			$values = array_map( 'floatval', array_values( $row['embedding'] ) );
-			if ( 0 === $size ) {
-				$size = count( $values );
-			} elseif ( count( $values ) !== $size ) {
-				throw new RuntimeException( 'EMPEDIA returned embeddings of different sizes.' );
+			$values = array();
+			foreach ( $row['embedding'] as $value ) {
+				if ( ( ! is_int( $value ) && ! is_float( $value ) ) || ! is_finite( (float) $value ) ) {
+					throw new RuntimeException( 'EMPEDIA returned an invalid embedding value.' );
+				}
+				$values[] = (float) $value;
 			}
-			$embeddings[] = new Embedding( $values, $size );
+			$seen[ $row['index'] ]                  = true;
+			$results[ $positions[ $row['index'] ] ] = $values;
 		}
-
-		$usage  = isset( $data['usage'] ) && is_array( $data['usage'] ) ? $data['usage'] : array();
-		$prompt = (int) ( $usage['prompt_tokens'] ?? 0 );
-		$total  = (int) ( $usage['total_tokens'] ?? $prompt );
-		$id     = $response->getHeaderAsString( 'X-Request-ID' );
-
-		return new EmbeddingResult(
-			$id ? $id : uniqid( 'empedia-emb-', true ),
-			$embeddings,
-			$size,
-			new TokenUsage( $prompt, 0, $total ),
-			$this->providerMetadata(),
-			$this->metadata()
-		);
+		$usage          = isset( $data['usage'] ) && is_array( $data['usage'] ) ? $data['usage'] : array();
+		$prompt         = (int) ( $usage['prompt_tokens'] ?? 0 );
+		$prompt_tokens += $prompt;
+		$total_tokens  += (int) ( $usage['total_tokens'] ?? $prompt );
+		$request_id     = (string) $response->getHeaderAsString( 'X-Request-ID' );
 	}
 
 	/**
@@ -128,13 +185,13 @@ class Empedia_AI_Embedding_Model extends AbstractApiBasedModel implements Embedd
 		}
 		if ( $part->getType()->isFile() ) {
 			$file = $part->getFile();
-			if ( $file && $file->isImage() ) {
-				$uri = $file->isInline() ? $file->getDataUri() : $file->getUrl();
+			if ( $file && $file->isImage() && in_array( $file->getMimeType(), array( 'image/png', 'image/jpeg', 'image/webp', 'image/gif' ), true ) ) {
+				$uri = $file->isInline() ? $file->getDataUri() : '';
 				if ( $uri ) {
 					return $uri;
 				}
 			}
 		}
-		throw new InvalidArgumentException( 'EMPEDIA embeddings accept only text and images.' );
+		throw new InvalidArgumentException( 'EMPEDIA embeddings accept only text and inline images.' );
 	}
 }
