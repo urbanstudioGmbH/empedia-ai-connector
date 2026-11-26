@@ -12,7 +12,7 @@ Connect the WordPress AI Client to EMPEDIA for text, image input, embeddings and
 
 == Description ==
 
-EMPEDIA AI Connector makes the EMPEDIA models available to plugins that use the WordPress AI Client. Each model is offered for its purpose: text generation with image input, embeddings (vector representations of text) and text to speech. Only models that your API key may use are listed. Other plugins must use the WordPress AI Client to access the connector. This plugin does not add a public chatbot.
+EMPEDIA AI Connector makes the EMPEDIA models available to plugins that use the WordPress AI Client. Each model is offered for its purpose: text generation with image input, embeddings (vector representations of text) and text to speech. Only models that your API key may use are listed. Available capabilities depend on the installed WordPress AI Client version. Other plugins must use the WordPress AI Client to access the connector. This plugin does not add a public chatbot.
 
 An EMPEDIA account and API key with access to the model are required. API usage is billed by EMPEDIA according to the customer's account and applicable pricing. An initial minimum account top-up may apply. Review the current pricing and terms before enabling the service.
 
