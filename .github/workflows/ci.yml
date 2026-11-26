@@ -1,0 +1,79 @@
+name: Connector CI
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+      - name: Install coding standards
+        run: composer install --working-dir=tools/wordpress-cs --no-interaction --prefer-dist --no-progress
+      - name: WordPress coding standards
+        run: tools/wordpress-cs/vendor/bin/phpcs --standard=plugin/phpcs.xml plugin
+      - name: PHP 7.4 compatibility
+        run: tools/wordpress-cs/vendor/bin/phpcs --standard=PHPCompatibilityWP --runtime-set testVersion 7.4- --extensions=php plugin
+      - name: Build installation package
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: bash tools/build.sh
+      - name: Check plugin
+        uses: wordpress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e
+        with:
+          build-dir: './build/empedia-ai-connector'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: empedia-ai-connector
+          path: build/empedia-ai-connector.zip
+          if-no-files-found: error
+  sdk:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        wordpress: ['7.0', '7.1']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - name: Test with WordPress AI Client
+        env:
+          WP_VERSION: ${{ matrix.wordpress }}
+        run: |
+          curl -fsSL "https://wordpress.org/wordpress-${WP_VERSION}.tar.gz" | tar xz
+          WP_AI_CLIENT_AUTOLOAD="$PWD/wordpress/wp-includes/php-ai-client/autoload.php" php tests/sdk.php
+  deploy:
+    needs: [checks, sdk]
+    if: ${{ vars.WPORG_APPROVED == 'true' && github.ref_type == 'tag' }}
+    runs-on: ubuntu-latest
+    environment: wordpress-org
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - name: Validate version and build
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          bash tools/build.sh
+          echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+      - name: Deploy approved plugin
+        uses: 10up/action-wordpress-plugin-deploy@54bd289b8525fd23a5c365ec369185f2966529c2
+        env:
+          SVN_USERNAME: ${{ secrets.WPORG_SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.WPORG_SVN_PASSWORD }}
+          SLUG: empedia-ai-connector
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD_DIR: build/empedia-ai-connector
+          ASSETS_DIR: .wordpress-org
