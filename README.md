@@ -6,7 +6,7 @@ This repository is the public distribution and release repository. The plugin is
 
 ## Build and checks
 
-Run `bash tools/build.sh` to create `build/empedia-ai-connector.zip`. The ZIP contains only plugin runtime files. GitHub Actions runs WordPress coding standards, PHP 7.4 compatibility, WordPress Plugin Check, SDK contract tests against WordPress 7.0 and 7.1, and retains the ZIP as a workflow artifact. `.wordpress-org/` contains directory assets, not plugin runtime files.
+Run `bash tools/build.sh` to create `build/empedia-ai-connector.zip`. The ZIP contains only plugin runtime files. GitHub Actions runs WordPress coding standards, PHP 7.4 compatibility, WordPress Plugin Check, SDK contract tests for text, image input and speech against WordPress 7.0 and 7.1, and retains the ZIP as a workflow artifact. `.wordpress-org/` contains directory assets, not plugin runtime files.
 
 ## WordPress.org release
 

@@ -23,7 +23,7 @@ use WordPress\AiClient\Files\DTO\File;
 
 class Empedia_Test_Transport implements HttpTransporterInterface {
 	public $requests = array();
-	public $catalog = '{"data":[{"id":"google/gemma-4-26B-A4B-it"},{"id":"audio-model","model_type":"transcription"}]}';
+	public $catalog = '{"data":[{"id":"google/gemma-4-26B-A4B-it"},{"id":"audio-model","model_type":"transcription"},{"id":"empedia/tts","model_type":"tts"}]}';
 	public $status = 200;
 	public function send( Request $request, ?RequestOptions $options = null ): Response {
 		$this->requests[] = $request;
@@ -31,6 +31,7 @@ class Empedia_Test_Transport implements HttpTransporterInterface {
 		if ( substr( $request->getUri(), -7 ) === '/models' ) {
 			return new Response( $this->status, array(), $this->catalog );
 		}
+		if ( substr( $request->getUri(), -13 ) === '/audio/speech' ) { return new Response( 200, array(), 'test-audio' ); }
 		return new Response( 200, array(), '{"id":"test","choices":[{"index":0,"message":{"role":"assistant","content":"Hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}' );
 	}
 }
@@ -43,7 +44,7 @@ check( ! $registry->isProviderConfigured( 'empedia' ), 'No key must not configur
 $registry->setProviderRequestAuthentication( 'empedia', new ApiKeyRequestAuthentication( 'test-key' ) );
 check( $registry->isProviderConfigured( 'empedia' ), 'Provider with key should be configured' );
 $models = Empedia_AI_Provider::modelMetadataDirectory()->listModelMetadata();
-check( count( $models ) === 1, 'Only supported text model should be discovered' );
+check( count( $models ) === 2, 'Text and speech models should be discovered; transcription is unsupported' );
 $registry->getProviderModel( 'empedia', 'google/gemma-4-26B-A4B-it' )->generateTextResult( array( new Message( MessageRoleEnum::user(), array( new MessagePart( 'Describe this.' ), new MessagePart( new File( 'data:image/png;base64,aGVsbG8=', 'image/png' ) ) ) ) ) );
 $request = end( $transport->requests );
 check( $request->getUri() === 'https://llmapi.empedia.cloud/v1/chat/completions', 'Wrong endpoint' );
@@ -51,6 +52,13 @@ check( $request->getHeaderAsString( 'Authorization' ) === 'Bearer test-key', 'Mi
 $data = $request->getData();
 check( $data['model'] === 'google/gemma-4-26B-A4B-it', 'Wrong model' );
 check( strpos( json_encode( $data, JSON_UNESCAPED_SLASHES ), 'data:image/png;base64,aGVsbG8=' ) !== false, 'Image not passed to model' );
+$config = new \WordPress\AiClient\Providers\Models\DTO\ModelConfig();
+$config->setOutputSpeechVoice( 'test-voice' );
+$speech = $registry->getProviderModel( 'empedia', 'empedia/tts', $config );
+$speech->convertTextToSpeechResult( array( new Message( MessageRoleEnum::user(), array( new MessagePart( 'Hello' ) ) ) ) );
+$request = end( $transport->requests );
+check( $request->getUri() === 'https://llmapi.empedia.cloud/v1/audio/speech', 'Wrong speech endpoint' );
+check( $request->getData()['voice'] === 'test-voice', 'Wrong speech voice' );
 $fresh = new Empedia_AI_Models();
 $fresh->setHttpTransporter( $transport );
 $fresh->setRequestAuthentication( new ApiKeyRequestAuthentication( 'test-key' ) );
